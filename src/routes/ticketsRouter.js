@@ -1,47 +1,16 @@
-// imports
-const { json } = require('express');
-const express = require('express');
+/* const express = require('express');
 const { Client } = require('pg');
-require('dotenv').config()
-
-// declarations
-const app = express();
-const port = 8000;
-
-const client = new Client({
-    user: process.env.DB_USERNAME,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME, 
-    password: process.env.DB_PASSWORD,
-    port: 5432,
-});
-client.connect();
-
-app.use(express.json())
+const ticketsRouter = express.Router(); */
+//const { Client } = require('pg');
+const express = require('express');
+const client = require('../client');
+const ticketsRouter = express.Router();
 
 
-app.use(function (req, res, next) {
 
-    // Website you wish to allow to connect
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
 
-    // Request methods you wish to allow
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
 
-    // Request headers you wish to allow
-    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
-
-    // Set to true if you need the website to include cookies in the requests sent
-    // to the API (e.g. in case you use sessions)
-    res.setHeader('Access-Control-Allow-Credentials', true);
-
-    // Pass to next layer of middleware
-    next();
-});
-
-// routes
-
-app.get('/api/tickets', async (req, res) => {
+ticketsRouter.get('/', async (req, res) => {
 
     try {
         const data = await client.query('SELECT * FROM tickets');
@@ -65,7 +34,7 @@ app.get('/api/tickets', async (req, res) => {
 })
 
 
-app.get('/api/tickets/:id', async (req, res) => {
+ticketsRouter.get('/:id', async (req, res) => {
     const ticketId = req.params.id
 
     if (!Number.isNaN(Number(ticketId))) {
@@ -109,12 +78,15 @@ app.get('/api/tickets/:id', async (req, res) => {
 })
 
 
-app.post('/api/tickets', async (req, res) => {
+ticketsRouter.post('/', async (req, res) => {
     console.log(req.body);
+
     const mess = req.body.message
-    if (mess) {
+    const user_id = req.body.user_id
+
+    if (mess && user_id!=null) {
         try {
-            const data = await client.query('INSERT INTO tickets (message) VALUES ($1) returning *', [mess]);
+            const data = await client.query('INSERT INTO tickets (message,user_id) VALUES ($1,$2) returning *', [mess, user_id]);
 
             res.status(201).json(
                 {
@@ -138,14 +110,14 @@ app.post('/api/tickets', async (req, res) => {
         res.status(400).json(
             {
                 status: "fail",
-                message: "message obligatoire"
+                message: "message ou id utilisateur obligatoire"
             }
         )
     }
 })
 
 
-app.delete('/api/tickets/:id', async (req, res) => {
+ticketsRouter.delete('/:id', async (req, res) => {
     const deleteId = req.params.id
     if (!Number.isNaN(Number(deleteId))) {
         try {
@@ -193,7 +165,7 @@ app.delete('/api/tickets/:id', async (req, res) => {
 )
 
 
-app.put('/api/tickets/:id', async (req, res) => {
+ticketsRouter.put('/:id', async (req, res) => {
 
     const updateId = req.params.id
     const updateMess = req.body.message
@@ -253,13 +225,6 @@ app.put('/api/tickets/:id', async (req, res) => {
 });
 
 
-app.all('*', function (req, res) {
-    res.status(404).end("not found");
-});
 
 
-
-// ecoute le port 8000
-app.listen(port, () => {
-    console.log(`Example app listening on port http://localhost:${port}`)
-})
+module.exports = ticketsRouter;
