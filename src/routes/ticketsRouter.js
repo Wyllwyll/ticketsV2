@@ -1,16 +1,15 @@
-/* const express = require('express');
-const { Client } = require('pg');
-const ticketsRouter = express.Router(); */
-//const { Client } = require('pg');
+
 const express = require('express');
 const client = require('../client');
 const ticketsRouter = express.Router();
+const authenticateJWT = require('../middlewares/auth.js')
 
 
 
 
 
-ticketsRouter.get('/', async (req, res) => {
+
+ticketsRouter.get('/', authenticateJWT, async (req, res) => {
 
     try {
         const data = await client.query('SELECT * FROM tickets');
@@ -34,7 +33,7 @@ ticketsRouter.get('/', async (req, res) => {
 })
 
 
-ticketsRouter.get('/:id', async (req, res) => {
+ticketsRouter.get('/:id', authenticateJWT, async (req, res) => {
     const ticketId = req.params.id
 
     if (!Number.isNaN(Number(ticketId))) {
@@ -78,13 +77,13 @@ ticketsRouter.get('/:id', async (req, res) => {
 })
 
 
-ticketsRouter.post('/', async (req, res) => {
+ticketsRouter.post('/', authenticateJWT, async (req, res) => {
     console.log(req.body);
 
     const mess = req.body.message
-    const user_id = req.body.user_id
+    const user_id = req.userId
 
-    if (mess && user_id!=null) {
+    if (mess && user_id != null) {
         try {
             const data = await client.query('INSERT INTO tickets (message,user_id) VALUES ($1,$2) returning *', [mess, user_id]);
 
@@ -117,28 +116,42 @@ ticketsRouter.post('/', async (req, res) => {
 })
 
 
-ticketsRouter.delete('/:id', async (req, res) => {
+ticketsRouter.delete('/:id', authenticateJWT, async (req, res) => {
     const deleteId = req.params.id
+    const test = req.userId
+
     if (!Number.isNaN(Number(deleteId))) {
         try {
-            const data = await client.query('DELETE from tickets WHERE id= $1', [deleteId])
-
-            if (data.rowCount === 1) {
-                res.status(200).json(
-                    {
-                        status: "success",
-                        message: "ticket supprimé"
-                    }
-                )
-            }
-
-            else {
+            const ticketData = await client.query('SELECT id,user_id FROM tickets WHERE id=$1', [deleteId]);
+            if (test !== ticketData.rows[0]['user_id']) {
                 res.status(404).json(
                     {
-                        status: "fail",
-                        message: "id ne correspond à aucun ticket"
+                        status: "FAIL",
+                        message: "suppression non autorisée"
                     }
                 )
+
+            }
+            else {
+                const data = await client.query('DELETE from tickets WHERE id= $1', [deleteId])
+
+                if (data.rowCount === 1) {
+                    res.status(200).json(
+                        {
+                            status: "success",
+                            message: "ticket supprimé"
+                        }
+                    )
+                }
+
+                else {
+                    res.status(404).json(
+                        {
+                            status: "fail",
+                            message: "id ne correspond à aucun ticket"
+                        }
+                    )
+                }
             }
         }
         catch (err) {
@@ -165,29 +178,44 @@ ticketsRouter.delete('/:id', async (req, res) => {
 )
 
 
-ticketsRouter.put('/:id', async (req, res) => {
+ticketsRouter.put('/:id', authenticateJWT, async (req, res) => {
 
     const updateId = req.params.id
     const updateMess = req.body.message
     const updateDone = req.body.done
+    const test = req.userId
 
     if (!Number.isNaN(Number(updateId))) {
         if (updateMess && updateDone !== undefined) {
             if (updateDone === true || updateDone === false) {
 
                 try {
-                    const data = await client.query('UPDATE tickets SET  done = $3, message = $1 WHERE id = $2 RETURNING *', [updateMess, updateId, updateDone])
-
-                    if (data.rowCount > 0) {
-                        res.status(201).json({ status: "success", message: "données modifiées", data: data.rows[0] })
-                    }
-                    else {
+                    const ticketData = await client.query('SELECT id,user_id FROM tickets WHERE id=$1', [updateId]);
+                    if (test !== ticketData.rows[0]['user_id']) {
                         res.status(404).json(
                             {
                                 status: "FAIL",
-                                message: "Aucun ticket ne correspond à cet id"
+                                message: "update non autorisée"
                             }
                         )
+
+                    }
+                    else {
+                        const data = await client.query('UPDATE tickets SET  done = $3, message = $1 WHERE id = $2 RETURNING *', [updateMess, updateId, updateDone])
+
+                        if (data.rowCount > 0) {
+                            res.status(201).json({
+                                status: "success", message: "données modifiées", data: data.rows[0]
+                            })
+                        }
+                        else {
+                            res.status(404).json(
+                                {
+                                    status: "FAIL",
+                                    message: "Aucun ticket ne correspond à cet id"
+                                }
+                            )
+                        }
                     }
                 }
                 catch (err) {

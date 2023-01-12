@@ -1,11 +1,11 @@
-/* 
-const { Client } = require('pg');
- */
+
 const express = require('express');
-require('dotenv').config()
 const bcrypt = require('bcrypt');
 const client = require('../client');
 const usersRouter = express.Router();
+const jwt = require('jsonwebtoken');
+require('dotenv').config()
+const accessTokenSecret= process.env.ACCESTOKENSECRET
 
 
 
@@ -44,18 +44,20 @@ usersRouter.post('/login', async (req, res) => {
     const name = req.body.user_name;
     const pass = req.body.password
     try {
-        const hashpass = await client.query('SELECT password FROM users WHERE user_name=$1', [name]);
-        if (hashpass.rowCount > 0) {
-            bcrypt.compare(pass, hashpass.rows[0]['password'], async function (err, result) {
+        const data = await client.query('SELECT * FROM users WHERE user_name=$1', [name]);
+
+        if (data.rowCount > 0) {
+            const user = data.rows[0];
+            bcrypt.compare(pass, user.password, async function (err, result) {
 
                 if (result == true) {
-                    res.status(200).json(
-                        {
-                            status: "success",
-                            message: "login success",
-                            data: null
-                        }
-                    )
+                    const accessToken = jwt.sign({ userId: user.id }, accessTokenSecret);
+
+                    res.status(200).json({
+                        status: 'OK',
+                        data : accessToken,
+                        message: 'logged in'
+                    });
                 }
                 else {
                     res.status(403).json(
